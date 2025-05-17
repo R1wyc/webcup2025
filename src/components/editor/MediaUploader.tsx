@@ -102,7 +102,7 @@ export function MediaUploader({ media, onChange, userId }: MediaUploaderProps) {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = (e) => {
-        const img: HTMLImageElement = new Image();
+        const img: HTMLImageElement = new window.Image();
         img.src = e.target?.result as string;
         
         img.onload = () => {

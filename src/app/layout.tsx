@@ -4,6 +4,8 @@ import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { AuthProvider } from "@/context/AuthContext";
+import { VoteProvider } from "@/context/VoteContext";
+import { ThemeProvider } from "@/context/ThemeContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,13 +30,17 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300`}
       >
-        <AuthProvider>
-          <Navbar />
-          <main className="flex-grow">{children}</main>
-          <Footer />
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <VoteProvider>
+              <Navbar />
+              <main className="flex-grow">{children}</main>
+              <Footer />
+            </VoteProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

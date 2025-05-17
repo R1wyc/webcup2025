@@ -1,204 +1,153 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect } from 'react';
-import { User } from '@/types';
-import { auth } from '@/lib/firebase';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-// Interfaces pour les types de Firebase (simplifiées pour l'implémentation simulée)
-interface FirebaseUser {
-  uid: string;
-  email: string | null;
-  displayName: string | null;
-  photoURL: string | null;
-  getIdToken?: (forceRefresh?: boolean) => Promise<string>;
+export interface User {
+  name: string;
+  email: string;
+  password: string;
+  avatar: string | null;
 }
 
 interface AuthContextType {
   user: User | null;
-  loading: boolean;
-  error: Error | undefined;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, displayName: string) => Promise<void>;
-  signOut: () => Promise<void>;
-  updateProfile: (displayName: string, photoURL?: string) => Promise<void>;
+  isLoading: boolean;
+  signIn: (email: string, password: string) => Promise<boolean>;
+  signUp: (email: string, password: string, name: string) => Promise<boolean>;
+  signOut: () => void;
+  updateUser: (userData: Partial<User>) => void;
+  updatePassword: (currentPassword: string, newPassword: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<Error | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Écouter les changements d'état d'authentification
+  // Initialize user from localStorage on component mount
   useEffect(() => {
-    // Utiliser le onAuthStateChanged simulé
-    const unsubscribe = auth.onAuthStateChanged((firebaseUser: FirebaseUser | null) => {
-      if (firebaseUser) {
-        const userData = {
-          uid: firebaseUser.uid,
-          email: firebaseUser.email || '',
-          displayName: firebaseUser.displayName || undefined,
-          photoURL: firebaseUser.photoURL || undefined,
-        };
-        
-        // Also save to localStorage for persistence
-        localStorage.setItem('theend_user', JSON.stringify(userData));
-        
-        setUser(userData);
-      } else {
-        // Attempt to recover user from localStorage as fallback
-        const storedUser = localStorage.getItem('theend_user');
-        if (storedUser) {
-          try {
-            const parsedUser = JSON.parse(storedUser);
-            
-            // Validate that we have a proper user object with required fields
-            if (parsedUser && typeof parsedUser === 'object' && parsedUser.uid) {
-              console.log('Recovered user from localStorage:', parsedUser.uid);
-              setUser(parsedUser);
-            } else {
-              console.error('Invalid user data in localStorage');
-              setUser(null);
-              localStorage.removeItem('theend_user');
-            }
-          } catch (e) {
-            console.error('Error parsing user from localStorage:', e);
-            setUser(null);
-            localStorage.removeItem('theend_user');
-          }
-        } else {
-          setUser(null);
-        }
+    const storedUser = localStorage.getItem('theend_user');
+    
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error('Failed to parse stored user:', error);
+        localStorage.removeItem('theend_user');
       }
-      setLoading(false);
-    });
-
-    return () => {
-      if (typeof unsubscribe === 'function') unsubscribe();
-    };
+    }
+    
+    setIsLoading(false);
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    try {
-      setLoading(true);
-      setError(undefined);
-      
-      // Utiliser la fonction simulée de connexion
-      const result = await auth.signInWithEmailAndPassword(email, password);
-      
-      if (result.user) {
-        // Mettre à jour l'utilisateur dans le state
-        const appUser: User = {
-          uid: result.user.uid,
-          email: result.user.email || email,
-          displayName: result.user.displayName || 'Utilisateur Demo',
-        };
-        
-        setUser(appUser);
-        
-        // Sauvegarder dans localStorage pour la persistance
-        localStorage.setItem('theend_user', JSON.stringify(appUser));
-      }
-    } catch (err: any) {
-      setError(new Error(err.message || 'Erreur lors de la connexion'));
-      throw err;
-    } finally {
-      setLoading(false);
+  // Sign in function
+  const signIn = async (email: string, password: string): Promise<boolean> => {
+    setIsLoading(true);
+    
+    // Simulate API call delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Get stored users or create a default user for demo purposes
+    let storedUser = localStorage.getItem('theend_user');
+    
+    if (!storedUser) {
+      // For demo: create a default user if none exists
+      const defaultUser: User = {
+        name: 'User Demo',
+        email: 'user@example.com',
+        password: 'password123',
+        avatar: null
+      };
+      localStorage.setItem('theend_user', JSON.stringify(defaultUser));
+      storedUser = JSON.stringify(defaultUser);
     }
+    
+    const parsedUser: User = JSON.parse(storedUser);
+    
+    // Check credentials
+    if (parsedUser.email === email && parsedUser.password === password) {
+      setUser(parsedUser);
+      setIsLoading(false);
+      return true;
+    }
+    
+    setIsLoading(false);
+    return false;
   };
 
-  const signUp = async (email: string, password: string, displayName: string) => {
-    try {
-      setLoading(true);
-      setError(undefined);
-      
-      // Utiliser la fonction simulée d'inscription
-      const result = await auth.createUserWithEmailAndPassword(email, password);
-      
-      if (result.user) {
-        // Dans notre mock, nous n'avons pas besoin d'appeler updateProfile
-        // car nous ne communiquons pas réellement avec Firebase
-        
-        // Mettre à jour l'utilisateur dans le state
-        const appUser: User = {
-          uid: result.user.uid,
-          email: result.user.email || email,
-          displayName: displayName,
-        };
-        
-        setUser(appUser);
-        
-        // Sauvegarder dans localStorage
-        localStorage.setItem('theend_user', JSON.stringify(appUser));
+  // Sign up function
+  const signUp = async (email: string, password: string, name: string): Promise<boolean> => {
+    setIsLoading(true);
+    
+    // Simulate API call delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Check if a user with this email already exists
+    const existingUser = localStorage.getItem('theend_user');
+    if (existingUser) {
+      const parsedUser: User = JSON.parse(existingUser);
+      if (parsedUser.email === email) {
+        setIsLoading(false);
+        throw new Error('Email already in use');
       }
-    } catch (err: any) {
-      setError(new Error(err.message || 'Erreur lors de l\'inscription'));
-      throw err;
-    } finally {
-      setLoading(false);
     }
+    
+    // Create new user
+    const newUser: User = {
+      name,
+      email,
+      password,
+      avatar: null
+    };
+    
+    // Store user in localStorage
+    localStorage.setItem('theend_user', JSON.stringify(newUser));
+    
+    // Set as current user
+    setUser(newUser);
+    setIsLoading(false);
+    return true;
   };
 
-  const signOut = async () => {
-    try {
-      setLoading(true);
-      setError(undefined);
-      
-      // Appeler la fonction simulée de déconnexion
-      await auth.signOut();
-      
-      // Mettre à jour le state et supprimer du localStorage
-      setUser(null);
-      localStorage.removeItem('theend_user');
-    } catch (err: any) {
-      setError(new Error(err.message || 'Erreur lors de la déconnexion'));
-      throw err;
-    } finally {
-      setLoading(false);
-    }
+  // Sign out function
+  const signOut = () => {
+    setUser(null);
   };
 
-  const updateProfile = async (displayName: string, photoURL?: string) => {
-    try {
-      setLoading(true);
-      setError(undefined);
-      
-      // Dans notre implementation simulée, nous mettons simplement à jour le state
-      if (user) {
-        const updatedUser = {
-          ...user,
-          displayName,
-          photoURL,
-        };
-        
-        setUser(updatedUser);
-        
-        // Mettre à jour dans localStorage
-        localStorage.setItem('theend_user', JSON.stringify(updatedUser));
-      } else {
-        throw new Error('Aucun utilisateur connecté');
-      }
-    } catch (err: any) {
-      setError(new Error(err.message || 'Erreur lors de la mise à jour du profil'));
-      throw err;
-    } finally {
-      setLoading(false);
+  // Update user information
+  const updateUser = (userData: Partial<User>) => {
+    if (!user) return;
+    
+    const updatedUser = { ...user, ...userData };
+    setUser(updatedUser);
+    localStorage.setItem('theend_user', JSON.stringify(updatedUser));
+  };
+
+  // Update password
+  const updatePassword = (currentPassword: string, newPassword: string): boolean => {
+    if (!user || user.password !== currentPassword) {
+      return false;
     }
+    
+    const updatedUser = { ...user, password: newPassword };
+    setUser(updatedUser);
+    localStorage.setItem('theend_user', JSON.stringify(updatedUser));
+    return true;
+  };
+
+  const contextValue: AuthContextType = {
+    user,
+    isLoading,
+    signIn,
+    signUp,
+    signOut,
+    updateUser,
+    updatePassword,
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        error,
-        signIn,
-        signUp,
-        signOut,
-        updateProfile,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

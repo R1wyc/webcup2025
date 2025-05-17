@@ -278,6 +278,16 @@ export function MediaUploader({ media, onChange, userId }: MediaUploaderProps) {
   const MediaModal = () => {
     if (!modalOpen) return null;
     
+    // Gestionnaire de soumission du formulaire
+    const handleSubmit = (e: React.FormEvent) => {
+      e.preventDefault(); // Empêche la soumission par défaut du formulaire
+      if (mediaUrl) {
+        handleAddMedia();
+      } else {
+        setError('Veuillez fournir une URL valide');
+      }
+    };
+    
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-fadeIn">
         <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-auto animate-scaleIn" onClick={e => e.stopPropagation()}>
@@ -292,7 +302,7 @@ export function MediaUploader({ media, onChange, userId }: MediaUploaderProps) {
             </button>
           </div>
           
-          <div className="p-4 space-y-4">
+          <form onSubmit={handleSubmit} className="p-4 space-y-4">
             <div className="flex flex-wrap gap-2">
               <Button
                 variant={mediaType === 'image' ? 'primary' : 'outline'}
@@ -430,15 +440,14 @@ export function MediaUploader({ media, onChange, userId }: MediaUploaderProps) {
               <Button
                 variant="primary"
                 size="sm"
-                onClick={handleAddMedia}
                 isLoading={isUploading}
                 disabled={!mediaUrl}
-                type="button"
+                type="submit"
               >
                 Ajouter
               </Button>
             </div>
-          </div>
+          </form>
         </div>
       </div>
     );

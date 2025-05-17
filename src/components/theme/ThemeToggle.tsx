@@ -15,17 +15,27 @@ export default function ThemeToggle({ className = '', fixed = true }: ThemeToggl
 
   // Set mounted state once component is on client-side
   useEffect(() => {
+    // Log current state of the theme
+    console.log('ThemeToggle: Mounted, current theme =', theme, 
+                'Dark class applied =', document.documentElement.classList.contains('dark'));
     setMounted(true);
-  }, []);
+  }, [theme]);
 
   const handleToggle = () => {
+    console.log('ThemeToggle: Toggle button clicked, current theme =', theme);
+    
+    // Toggle theme
     toggleTheme();
     
     // Add animation
     setIsAnimating(true);
     setTimeout(() => setIsAnimating(false), 300);
     
-    console.log('Toggle button clicked, theme is now:', theme);
+    // Check if the theme was actually toggled after a small delay
+    setTimeout(() => {
+      console.log('ThemeToggle: After toggle, dark class applied =', 
+                 document.documentElement.classList.contains('dark'));
+    }, 100);
   };
 
   // Determine position classes based on fixed prop

@@ -4,111 +4,118 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { useForm } from 'react-hook-form';
-
-interface LoginFormData {
-  email: string;
-  password: string;
-}
 
 export default function LoginPage() {
-  const { signIn } = useAuth();
-  const router = useRouter();
+  const [credentials, setCredentials] = useState({
+    email: '',
+    password: '',
+  });
+  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginFormData>();
-  
-  const onSubmit = async (data: LoginFormData) => {
+  const router = useRouter();
+  const { signIn } = useAuth();
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setCredentials(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
     setIsLoading(true);
-    setError(null);
     
     try {
-      await signIn(data.email, data.password);
-      router.push('/dashboard');
+      const success = await signIn(credentials.email, credentials.password);
+      
+      if (success) {
+        router.push('/account');
+      } else {
+        setError('Email ou mot de passe incorrect.');
+      }
     } catch (err) {
-      console.error('Login error:', err);
-      setError('Email ou mot de passe incorrect. Veuillez réessayer.');
+      setError('Une erreur est survenue lors de la connexion.');
+      console.error(err);
     } finally {
       setIsLoading(false);
     }
   };
-  
+
   return (
-    <div className="min-h-screen py-12 sm:py-16 lg:py-24 bg-gray-50">
-      <div className="max-w-md mx-auto bg-white p-8 sm:p-10 rounded-lg shadow-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Connexion</h1>
-          <p className="mt-2 text-gray-600">
-            Accédez à votre compte pour gérer vos pages
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
+            Connexion à votre compte
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+            <span className="block">
+              Utilisez l'email et mot de passe suivants pour tester :
+            </span>
+            <span className="block font-medium text-indigo-600 dark:text-indigo-400">
+              user@example.com / password123
+            </span>
           </p>
         </div>
         
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-md text-sm">
-            {error}
-          </div>
-        )}
-        
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div>
-            <Input
-              label="Email"
-              type="email"
-              fullWidth
-              placeholder="votre@email.com"
-              {...register('email', {
-                required: 'L\'email est requis',
-                pattern: {
-                  value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                  message: 'Adresse email invalide',
-                },
-              })}
-              error={errors.email?.message}
-            />
-          </div>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          {error && (
+            <div className="rounded-md bg-red-50 dark:bg-red-900 p-4">
+              <div className="flex">
+                <div>
+                  <p className="text-sm text-red-800 dark:text-red-200">
+                    {error}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           
-          <div>
-            <Input
-              label="Mot de passe"
-              type="password"
-              fullWidth
-              placeholder="••••••••"
-              {...register('password', {
-                required: 'Le mot de passe est requis',
-                minLength: {
-                  value: 6,
-                  message: 'Le mot de passe doit contenir au moins 6 caractères',
-                },
-              })}
-              error={errors.password?.message}
-            />
+          <div className="rounded-md shadow-sm -space-y-px">
+            <div>
+              <label htmlFor="email" className="sr-only">
+                Adresse email
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={credentials.email}
+                onChange={handleChange}
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-800 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                placeholder="Adresse email"
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="sr-only">
+                Mot de passe
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={credentials.password}
+                onChange={handleChange}
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-800 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                placeholder="Mot de passe"
+              />
+            </div>
           </div>
-          
+
           <div>
-            <Button
+            <button
               type="submit"
-              variant="primary"
-              fullWidth
-              isLoading={isLoading}
+              disabled={isLoading}
+              className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
+                isLoading ? 'opacity-70 cursor-not-allowed' : ''
+              }`}
             >
-              Se connecter
-            </Button>
-          </div>
-          
-          <div className="text-center text-sm mt-4">
-            <p className="text-gray-600">
-              Pas encore de compte?{' '}
-              <Link href="/signup" className="text-purple-600 hover:text-purple-800 font-medium">
-                S'inscrire
-              </Link>
-            </p>
+              {isLoading ? 'Connexion en cours...' : 'Se connecter'}
+            </button>
           </div>
         </form>
       </div>

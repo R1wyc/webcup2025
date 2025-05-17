@@ -21,22 +21,40 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const storedTheme = localStorage.getItem('theme') as ThemeType | null;
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
+    // Use stored theme or system preference
     const initialTheme = storedTheme || (prefersDark ? 'dark' : 'light');
+    
+    console.log('ThemeContext: Initial theme =', initialTheme, 
+                'Stored theme =', storedTheme, 
+                'System prefers dark =', prefersDark);
+    
+    // Update state
     setTheme(initialTheme);
     
-    // Apply theme immediately during initialization
+    // Make sure the class is applied correctly
     if (initialTheme === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
     
+    // Always store the theme to avoid checking system preference again
+    if (!storedTheme) {
+      localStorage.setItem('theme', initialTheme);
+    }
+    
+    // Mark component as mounted
     setMounted(true);
+    
+    console.log('ThemeContext: Initialized, dark class applied =', 
+                document.documentElement.classList.contains('dark'));
   }, []);
 
   // Update HTML class and localStorage when theme changes
   useEffect(() => {
     if (!mounted || theme === null) return;
+    
+    console.log('ThemeContext: Theme changed to', theme);
     
     // Apply theme to HTML element
     if (theme === 'dark') {
@@ -48,15 +66,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     // Store preference in localStorage
     localStorage.setItem('theme', theme);
     
-    // Log for debugging
-    console.log('Theme changed to:', theme, 'Dark class applied:', document.documentElement.classList.contains('dark'));
+    // Verify the change was applied
+    console.log('ThemeContext: After change, dark class applied =', 
+                document.documentElement.classList.contains('dark'));
+    
   }, [theme, mounted]);
 
   // Function to toggle between light and dark
   const toggleTheme = () => {
     setTheme(prevTheme => {
       const newTheme = prevTheme === 'light' ? 'dark' : 'light';
-      console.log('Toggling theme from', prevTheme, 'to', newTheme);
+      console.log('ThemeContext: Toggling theme from', prevTheme, 'to', newTheme);
       return newTheme;
     });
   };

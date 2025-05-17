@@ -29,8 +29,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" suppressHydrationWarning>
+    <html lang="fr" suppressHydrationWarning className="transition-colors duration-300">
       <head>
+        {/* Script pour éviter le flash initial (FOUC) */}
         <script
           dangerouslySetInnerHTML={{
             __html: `

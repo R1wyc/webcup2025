@@ -4,12 +4,24 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
-import { Bars3Icon, XMarkIcon, TrophyIcon } from '@heroicons/react/24/outline';
+import { Bars3Icon, XMarkIcon, TrophyIcon, UserIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import ThemeToggle from '@/components/theme/ThemeToggle';
 
 export function Navbar() {
   const { user, signOut } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  // Helper to get user initials for avatar fallback
+  const getInitials = (name: string | undefined) => {
+    if (!name) return '';
+    
+    return name
+      .split(' ')
+      .map(part => part[0])
+      .join('')
+      .toUpperCase();
+  };
 
   return (
     <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 transition-colors duration-300">
@@ -51,27 +63,63 @@ export function Navbar() {
               )}
             </div>
           </div>
-          <div className="hidden sm:ml-6 sm:flex sm:items-center">
+          <div className="hidden sm:ml-6 sm:flex sm:items-center space-x-4">
+            <ThemeToggle fixed={false} />
+            
             {user ? (
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-500 dark:text-gray-300">
-                  {user.displayName || user.email}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => signOut()}
+              <div className="relative">
+                <button 
+                  className="flex items-center space-x-2 focus:outline-none" 
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
                 >
-                  Déconnexion
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  as={Link}
-                  href="/create"
-                >
-                  Créer une page
-                </Button>
+                  <div className="flex items-center">
+                    {user.avatar ? (
+                      <div className="h-8 w-8 rounded-full overflow-hidden">
+                        <img 
+                          src={user.avatar} 
+                          alt={user.name}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-semibold">
+                        {getInitials(user.name)}
+                      </div>
+                    )}
+                    <span className="text-sm text-gray-700 dark:text-gray-300 ml-2">
+                      {user.name}
+                    </span>
+                    <ChevronDownIcon className="h-4 w-4 ml-1 text-gray-500 dark:text-gray-400" />
+                  </div>
+                </button>
+                
+                {userMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 py-2 bg-white dark:bg-gray-800 rounded-md shadow-lg z-10 border border-gray-200 dark:border-gray-700">
+                    <Link 
+                      href="/account" 
+                      className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => setUserMenuOpen(false)}
+                    >
+                      Mon profil
+                    </Link>
+                    <Link 
+                      href="/create" 
+                      className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => setUserMenuOpen(false)}
+                    >
+                      Créer une page
+                    </Link>
+                    <button 
+                      onClick={() => {
+                        signOut();
+                        setUserMenuOpen(false);
+                      }} 
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      Déconnexion
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex items-center space-x-2">
@@ -150,11 +198,39 @@ export function Navbar() {
           </div>
           <div className="border-t border-gray-200 dark:border-gray-700 pt-4 pb-3">
             {user ? (
-              <div className="space-y-2 px-4">
-                <div className="text-base font-medium text-gray-800 dark:text-gray-200">
-                  {user.displayName || user.email}
+              <div className="space-y-4 px-4">
+                <div className="flex items-center">
+                  {user.avatar ? (
+                    <div className="h-10 w-10 rounded-full overflow-hidden mr-3">
+                      <img 
+                        src={user.avatar} 
+                        alt={user.name}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-10 w-10 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-semibold mr-3">
+                      {getInitials(user.name)}
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-base font-medium text-gray-800 dark:text-gray-200">
+                      {user.name}
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      {user.email}
+                    </div>
+                  </div>
                 </div>
+                
                 <div className="flex flex-col space-y-2">
+                  <Link
+                    href="/account"
+                    className="block rounded-md py-2 px-3 text-base font-medium text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-white"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Mon profil
+                  </Link>
                   <Button
                     variant="outline"
                     size="sm"

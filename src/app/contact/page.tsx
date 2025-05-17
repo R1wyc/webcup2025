@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -10,39 +10,131 @@ export default function ContactPage() {
     message: ''
   });
   const [submitted, setSubmitted] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submittedMessages, setSubmittedMessages] = useState<any[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPreviousMessages, setShowPreviousMessages] = useState(false);
+
+  // Load existing contact messages
+  useEffect(() => {
+    const storedData = localStorage.getItem('contactFormData');
+    if (storedData) {
+      try {
+        const parsedData = JSON.parse(storedData);
+        setSubmittedMessages(parsedData);
+      } catch (error) {
+        console.error('Error loading contact data:', error);
+      }
+    }
+  }, []);
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+    let isValid = true;
+
+    // Validate name
+    if (!formData.name.trim()) {
+      newErrors.name = 'Le nom est requis';
+      isValid = false;
+    } else if (formData.name.trim().length < 2) {
+      newErrors.name = 'Le nom doit contenir au moins 2 caractères';
+      isValid = false;
+    }
+
+    // Validate email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!formData.email.trim()) {
+      newErrors.email = 'L\'email est requis';
+      isValid = false;
+    } else if (!emailRegex.test(formData.email)) {
+      newErrors.email = 'Format d\'email invalide';
+      isValid = false;
+    }
+
+    // Validate subject
+    if (!formData.subject) {
+      newErrors.subject = 'Veuillez sélectionner un sujet';
+      isValid = false;
+    }
+
+    // Validate message
+    if (!formData.message.trim()) {
+      newErrors.message = 'Le message est requis';
+      isValid = false;
+    } else if (formData.message.trim().length < 10) {
+      newErrors.message = 'Le message doit contenir au moins 10 caractères';
+      isValid = false;
+    }
+
+    setErrors(newErrors);
+    return isValid;
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Clear error for this field when user types
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // In a real app, you would send this data to a server
-    console.log('Contact form submitted:', formData);
+    // Validate form
+    if (!validateForm()) {
+      return;
+    }
     
-    // Store in localStorage for demo purposes
-    const storedData = localStorage.getItem('contactFormData');
-    const contactData = storedData ? JSON.parse(storedData) : [];
-    contactData.push({ ...formData, date: new Date().toISOString() });
-    localStorage.setItem('contactFormData', JSON.stringify(contactData));
+    setIsSubmitting(true);
     
-    // Show success message
-    setSubmitted(true);
-    
-    // Reset form
-    setFormData({
-      name: '',
-      email: '',
-      subject: '',
-      message: ''
-    });
-    
-    // Hide success message after 5 seconds
+    // Simulate network delay
     setTimeout(() => {
-      setSubmitted(false);
-    }, 5000);
+      // Store in localStorage
+      const newMessage = { 
+        ...formData, 
+        id: Date.now().toString(),
+        date: new Date().toISOString() 
+      };
+      
+      const updatedMessages = [...submittedMessages, newMessage];
+      setSubmittedMessages(updatedMessages);
+      localStorage.setItem('contactFormData', JSON.stringify(updatedMessages));
+      
+      // Show success message
+      setSubmitted(true);
+      setIsSubmitting(false);
+      
+      // Reset form
+      setFormData({
+        name: '',
+        email: '',
+        subject: '',
+        message: ''
+      });
+      
+      // Hide success message after 5 seconds
+      setTimeout(() => {
+        setSubmitted(false);
+      }, 5000);
+    }, 800);
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
+  };
+
+  const togglePreviousMessages = () => {
+    setShowPreviousMessages(!showPreviousMessages);
   };
 
   return (
@@ -85,9 +177,13 @@ export default function ContactPage() {
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
-                required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2 px-3"
+                className={`mt-1 block w-full rounded-md shadow-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2 px-3 ${
+                  errors.name ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'
+                }`}
               />
+              {errors.name && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.name}</p>
+              )}
             </div>
             
             <div>
@@ -100,9 +196,13 @@ export default function ContactPage() {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2 px-3"
+                className={`mt-1 block w-full rounded-md shadow-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2 px-3 ${
+                  errors.email ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'
+                }`}
               />
+              {errors.email && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email}</p>
+              )}
             </div>
           </div>
           
@@ -115,8 +215,9 @@ export default function ContactPage() {
               name="subject"
               value={formData.subject}
               onChange={handleChange}
-              required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2 px-3"
+              className={`mt-1 block w-full rounded-md shadow-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2 px-3 ${
+                errors.subject ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'
+              }`}
             >
               <option value="">Choisir un sujet</option>
               <option value="support">Support technique</option>
@@ -124,6 +225,9 @@ export default function ContactPage() {
               <option value="partnership">Partenariat</option>
               <option value="other">Autre</option>
             </select>
+            {errors.subject && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.subject}</p>
+            )}
           </div>
           
           <div>
@@ -135,21 +239,80 @@ export default function ContactPage() {
               name="message"
               value={formData.message}
               onChange={handleChange}
-              required
               rows={4}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2 px-3"
+              className={`mt-1 block w-full rounded-md shadow-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2 px-3 ${
+                errors.message ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'
+              }`}
             />
+            {errors.message && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.message}</p>
+            )}
           </div>
           
           <div className="mt-6">
             <button
               type="submit"
-              className="w-full sm:w-auto flex justify-center py-2 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 hover:scale-105"
+              disabled={isSubmitting}
+              className={`w-full sm:w-auto flex justify-center py-2 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 ${
+                isSubmitting ? 'opacity-70 cursor-not-allowed' : 'hover:scale-105'
+              }`}
             >
-              Envoyer
+              {isSubmitting ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Envoi en cours...
+                </>
+              ) : 'Envoyer'}
             </button>
           </div>
         </form>
+        
+        {submittedMessages.length > 0 && (
+          <div className="mt-12 border-t border-gray-200 dark:border-gray-700 pt-8">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
+                Messages précédents
+              </h2>
+              <button
+                onClick={togglePreviousMessages}
+                className="text-sm text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-800 dark:hover:text-indigo-300"
+              >
+                {showPreviousMessages ? 'Masquer' : 'Afficher'}
+              </button>
+            </div>
+            
+            {showPreviousMessages && (
+              <div className="space-y-4 overflow-hidden">
+                {submittedMessages.slice().reverse().map((message) => (
+                  <div key={message.id} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                    <div className="flex justify-between mb-2">
+                      <div className="font-medium text-gray-800 dark:text-gray-200">
+                        {message.name}
+                      </div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {formatDate(message.date)}
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      {message.email}
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                      Sujet: {message.subject === 'support' ? 'Support technique' : 
+                              message.subject === 'feedback' ? 'Commentaires' :
+                              message.subject === 'partnership' ? 'Partenariat' : 'Autre'}
+                    </div>
+                    <div className="text-gray-700 dark:text-gray-300 mt-2 text-sm">
+                      {message.message}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         
         <div className="mt-12 border-t border-gray-200 dark:border-gray-700 pt-8">
           <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">Autres moyens de nous contacter</h2>

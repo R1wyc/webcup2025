@@ -1,7 +1,7 @@
 'use client';
 
 import { useTheme } from '@/context/ThemeContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface ThemeToggleProps {
   className?: string;
@@ -11,6 +11,12 @@ interface ThemeToggleProps {
 export default function ThemeToggle({ className = '', fixed = true }: ThemeToggleProps) {
   const { theme, toggleTheme } = useTheme();
   const [isAnimating, setIsAnimating] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Set mounted state once component is on client-side
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleToggle = () => {
     toggleTheme();
@@ -18,12 +24,17 @@ export default function ThemeToggle({ className = '', fixed = true }: ThemeToggl
     // Add animation
     setIsAnimating(true);
     setTimeout(() => setIsAnimating(false), 300);
+    
+    console.log('Toggle button clicked, theme is now:', theme);
   };
 
   // Determine position classes based on fixed prop
   const positionClasses = fixed 
     ? 'fixed bottom-4 right-4 z-50' 
     : '';
+
+  // Don't render anything on the server side
+  if (!mounted) return null;
 
   return (
     <button
@@ -38,6 +49,7 @@ export default function ThemeToggle({ className = '', fixed = true }: ThemeToggl
         shadow-md hover:shadow-lg
         ${isAnimating ? 'scale-110' : 'scale-100'}
         transition-all duration-300 ease-in-out
+        hover:scale-105
       `}
       aria-label="Basculer le thème"
       title={theme === 'light' ? 'Passer en mode sombre' : 'Passer en mode clair'}

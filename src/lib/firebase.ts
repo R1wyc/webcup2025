@@ -1,9 +1,22 @@
 // Firebase configuration - VERSION DE DÉVELOPPEMENT SIMULÉE
 import { getApps } from 'firebase/app';
 
+// Define interface for mock user 
+interface MockUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  getIdToken: () => Promise<string>;
+}
+
+interface AuthResult {
+  user: MockUser;
+}
+
 // Mock Firebase services pour le développement
 const createMockAuth = () => {
-  const mockUser = {
+  const mockUser: MockUser = {
     uid: 'demo-user-123',
     email: 'demo@example.com',
     displayName: 'Utilisateur Démo',
@@ -14,13 +27,13 @@ const createMockAuth = () => {
   // Simuler l'instance auth de Firebase
   return {
     currentUser: null,
-    onAuthStateChanged: (callback) => {
+    onAuthStateChanged: (callback: (user: MockUser | null) => void) => {
       // Initialement pas d'utilisateur connecté
       setTimeout(() => callback(null), 100);
       // Retourner une fonction de désabonnement
       return () => {};
     },
-    signInWithEmailAndPassword: (email, password) => {
+    signInWithEmailAndPassword: (email: string, password: string): Promise<AuthResult> => {
       return new Promise((resolve) => {
         setTimeout(() => {
           // Simuler un succès de connexion
@@ -30,7 +43,7 @@ const createMockAuth = () => {
         }, 1000);
       });
     },
-    createUserWithEmailAndPassword: (email, password) => {
+    createUserWithEmailAndPassword: (email: string, password: string): Promise<AuthResult> => {
       return new Promise((resolve) => {
         setTimeout(() => {
           // Simuler un succès d'inscription

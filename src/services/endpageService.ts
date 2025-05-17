@@ -5,15 +5,18 @@ import { v4 as uuidv4 } from 'uuid';
 // Collection reference - simulée avec notre mock
 const endpagesCollection = db.collection('endpages');
 
+// Store de démonstration persistant avec localStorage
+let demoEndPages: Record<string, EndPage> = {};
+
+// Store de brouillons persistant avec localStorage
+let draftEndPages: Record<string, EndPage> = {};
+
 // Helper to create a unique slug
 export const generateSlug = (): string => {
   const randomChars = Math.random().toString(36).substring(2, 8);
   const timestamp = Date.now().toString(36);
   return `${randomChars}-${timestamp}`;
 };
-
-// Store de démonstration persistant avec localStorage
-let demoEndPages: Record<string, EndPage> = {};
 
 // Charger les pages existantes depuis localStorage
 const loadDemoPages = (): void => {
@@ -44,6 +47,19 @@ const loadDemoPages = (): void => {
   }
 };
 
+// Charger les brouillons depuis localStorage
+const loadDraftPages = (): void => {
+  try {
+    const storedDrafts = localStorage.getItem('draft_end_pages');
+    if (storedDrafts) {
+      draftEndPages = JSON.parse(storedDrafts);
+    }
+  } catch (error) {
+    console.error("Erreur lors du chargement des brouillons:", error);
+    draftEndPages = {};
+  }
+};
+
 // Sauvegarder les pages dans localStorage
 const saveDemoPages = (): void => {
   try {
@@ -53,9 +69,19 @@ const saveDemoPages = (): void => {
   }
 };
 
-// Initialiser les pages au chargement
+// Sauvegarder les brouillons dans localStorage
+const saveDraftPages = (): void => {
+  try {
+    localStorage.setItem('draft_end_pages', JSON.stringify(draftEndPages));
+  } catch (error) {
+    console.error("Erreur lors de la sauvegarde des brouillons:", error);
+  }
+};
+
+// Initialiser les pages et brouillons au chargement
 if (typeof window !== 'undefined') {
   loadDemoPages();
+  loadDraftPages();
 }
 
 // Function to clear all demo pages (useful for development/debugging)
@@ -67,6 +93,146 @@ export const clearDemoPages = (): void => {
   } catch (error) {
     console.error("Error clearing demo pages:", error);
   }
+};
+
+// Function to clear all draft pages
+export const clearDraftPages = (): void => {
+  try {
+    localStorage.removeItem('draft_end_pages');
+    draftEndPages = {};
+    console.log('All draft pages cleared from localStorage.');
+  } catch (error) {
+    console.error("Error clearing draft pages:", error);
+  }
+};
+
+// Créer ou mettre à jour un brouillon
+export const saveDraft = async (
+  userId: string,
+  title: string,
+  content: string,
+  tone: EndPage['tone'],
+  media: MediaItem[],
+  isPublic: boolean,
+  draftId?: string,
+  backgroundColor?: string,
+  textColor?: string,
+  fontFamily?: string
+): Promise<EndPage> => {
+  // Charger les brouillons pour assurer la cohérence
+  if (typeof window !== 'undefined') {
+    loadDraftPages();
+  }
+  
+  // Si un ID de brouillon est fourni, on met à jour ce brouillon
+  // Sinon, on crée un nouveau brouillon
+  const id = draftId || `draft-${uuidv4()}`;
+  const slug = id.replace('draft-', '');
+  const createdAt = Date.now();
+
+  const draft: EndPage = {
+    id,
+    title,
+    content,
+    tone,
+    media,
+    isPublic,
+    createdAt,
+    userId,
+    slug,
+    isDraft: true,
+    ...(backgroundColor !== undefined && { backgroundColor }),
+    ...(textColor !== undefined && { textColor }),
+    ...(fontFamily !== undefined && { fontFamily })
+  };
+
+  // Sauvegarder dans notre store de brouillons
+  draftEndPages[id] = draft;
+  saveDraftPages();
+  
+  console.log(`Brouillon sauvegardé avec succès. ID: ${id}`);
+  return draft;
+};
+
+// Récupérer les brouillons d'un utilisateur
+export const getUserDrafts = async (userId: string): Promise<EndPage[]> => {
+  // Charger les brouillons depuis localStorage pour assurer la cohérence
+  if (typeof window !== 'undefined') {
+    loadDraftPages();
+  }
+  
+  // Filtrer les brouillons qui appartiennent à cet utilisateur
+  return Object.values(draftEndPages).filter(draft => draft.userId === userId);
+};
+
+// Récupérer un brouillon par ID
+export const getDraftById = async (draftId: string): Promise<EndPage | null> => {
+  // Charger les brouillons depuis localStorage pour assurer la cohérence
+  if (typeof window !== 'undefined') {
+    loadDraftPages();
+  }
+  
+  return draftEndPages[draftId] || null;
+};
+
+// Supprimer un brouillon
+export const deleteDraft = async (draftId: string): Promise<void> => {
+  // Charger les brouillons depuis localStorage pour assurer la cohérence
+  if (typeof window !== 'undefined') {
+    loadDraftPages();
+  }
+  
+  // Supprimer le brouillon s'il existe
+  if (draftEndPages[draftId]) {
+    delete draftEndPages[draftId];
+    saveDraftPages();
+    console.log(`Brouillon supprimé avec succès. ID: ${draftId}`);
+  } else {
+    console.error(`Brouillon non trouvé pour suppression. ID: ${draftId}`);
+  }
+};
+
+// Publier un brouillon (convertir en page définitive)
+export const publishDraft = async (draftId: string): Promise<EndPage> => {
+  // Charger les brouillons et les pages depuis localStorage pour assurer la cohérence
+  if (typeof window !== 'undefined') {
+    loadDraftPages();
+    loadDemoPages();
+  }
+  
+  // Vérifier que le brouillon existe
+  const draft = draftEndPages[draftId];
+  if (!draft) {
+    throw new Error(`Brouillon non trouvé. ID: ${draftId}`);
+  }
+  
+  // Créer une nouvelle page à partir du brouillon
+  const id = uuidv4();
+  const slug = generateSlug();
+  const createdAt = Date.now();
+
+  // Copier toutes les propriétés du brouillon sauf l'ID, le slug et isDraft
+  const newEndPage: EndPage = {
+    ...draft,
+    id,
+    slug,
+    createdAt,
+    isDraft: false
+  };
+
+  // Sauvegarder dans notre store de démonstration
+  demoEndPages[slug] = newEndPage;
+  saveDemoPages();
+  
+  // Supprimer le brouillon
+  delete draftEndPages[draftId];
+  saveDraftPages();
+  
+  // Sauvegarder également dans Firestore simulé
+  await endpagesCollection.doc(id).set(newEndPage);
+  
+  console.log(`Brouillon publié avec succès. Nouveau ID: ${id}, Slug: ${slug}`);
+  return newEndPage;
 };
 
 // Create a new end page
@@ -96,6 +262,7 @@ export const createEndPage = async (
     createdAt,
     userId,
     slug,
+    isDraft: false
   };
 
   // Créer l'objet final en n'ajoutant les propriétés optionnelles que si elles sont définies
@@ -243,50 +410,21 @@ export const getPublicEndPages = async (limitCount: number = 20): Promise<EndPag
 
 // Get end pages by user ID
 export const getUserEndPages = async (userId: string): Promise<EndPage[]> => {
-  // Charger les données depuis localStorage pour assurer la cohérence
+  // Ensure we're working with the latest data from localStorage
   if (typeof window !== 'undefined') {
     loadDemoPages();
   }
   
-  // En développement, générer quelques pages pour l'utilisateur de démonstration
-  const timestamp = Date.now();
-  const userPages: EndPage[] = [
-    {
-      id: `user-demo-1-${timestamp}-1`,
-      title: 'Ma lettre de démission',
-      content: 'Il est temps pour moi de voguer vers de nouveaux horizons professionnels.',
-      tone: 'professional',
-      media: [],
-      isPublic: false,
-      createdAt: timestamp - 500000,
-      userId,
-      slug: 'lettre-demission'
-    },
-    {
-      id: `user-demo-2-${timestamp}-2`,
-      title: 'Adieu à mon appartement',
-      content: 'Tant de souvenirs dans ces murs qui m\'ont vu grandir.',
-      tone: 'touching',
-      media: [],
-      isPublic: true,
-      createdAt: timestamp - 1500000,
-      userId,
-      slug: 'adieu-appartement'
-    }
-  ];
-  
-  // S'assurer que les pages d'exemple de l'utilisateur sont dans notre store
-  userPages.forEach(page => {
-    if (!demoEndPages[page.slug]) {
-      demoEndPages[page.slug] = page;
-    }
+  // Only return pages that belong to this user from our store
+  // No more hardcoded demo pages - only return actual user content
+  const userPages = Object.values(demoEndPages).filter(page => {
+    // Strictly compare the userId to ensure we only get this user's pages
+    return page.userId === userId && !page.isDraft;
   });
-  saveDemoPages();
   
-  // Ajouter les pages de notre store de démonstration qui appartiennent à cet utilisateur
-  const userDemoPages = Object.values(demoEndPages).filter(page => page.userId === userId);
+  console.log(`Found ${userPages.length} pages for user ${userId}`);
   
-  return userDemoPages;
+  return userPages;
 };
 
 // Update an end page

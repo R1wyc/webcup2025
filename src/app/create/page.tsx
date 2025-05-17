@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { TextArea } from '@/components/ui/TextArea';
 import { ToneSelector } from '@/components/editor/ToneSelector';
 import { MediaUploader } from '@/components/editor/MediaUploader';
-import { createEndPage } from '@/services/endpageService';
+import { createEndPage, saveDraft, publishDraft } from '@/services/endpageService';
 import { ToneStyle, MediaItem } from '@/types';
 import { useForm } from 'react-hook-form';
 
@@ -19,6 +19,9 @@ interface CreateFormData {
   isPublic: boolean;
 }
 
+// ID du brouillon stocké en localStorage
+const DRAFT_STORAGE_KEY = 'current_draft_id';
+
 export default function CreatePage() {
   const { user } = useAuth();
   const router = useRouter();
@@ -26,11 +29,16 @@ export default function CreatePage() {
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [draftSaved, setDraftSaved] = useState(false);
+  const [draftTimer, setDraftTimer] = useState<NodeJS.Timeout | null>(null);
   
   const {
     register,
     handleSubmit,
     formState: { errors },
+    watch,
+    setValue
   } = useForm<CreateFormData>({
     defaultValues: {
       title: '',
@@ -38,10 +46,134 @@ export default function CreatePage() {
       isPublic: false
     }
   });
+
+  // Observer les changements dans le formulaire pour la sauvegarde automatique
+  const formValues = watch();
+  const { title, content, isPublic } = formValues;
   
+  // Effet pour charger un brouillon existant au chargement
+  useEffect(() => {
+    if (!user) return;
+    
+    // Vérifier s'il y a un ID de brouillon en cours dans localStorage
+    const storedDraftId = localStorage.getItem(DRAFT_STORAGE_KEY);
+    if (storedDraftId) {
+      setDraftId(storedDraftId);
+      // On pourrait charger le contenu du brouillon ici
+      // Mais pour simplifier, on continue avec un formulaire vide
+    } else {
+      // Créer un nouveau brouillon vide
+      createNewDraft();
+    }
+    
+    // Nettoyer le timer à la destruction du composant
+    return () => {
+      if (draftTimer) clearTimeout(draftTimer);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+  
+  // Effet pour la sauvegarde automatique du brouillon toutes les 30 secondes
+  useEffect(() => {
+    if (!user || !draftId) return;
+    
+    // Nettoyer le timer existant
+    if (draftTimer) clearTimeout(draftTimer);
+    
+    // Créer un nouveau timer pour sauvegarder le brouillon
+    const timer = setTimeout(() => {
+      autoSaveDraft();
+    }, 30000); // 30 secondes
+    
+    setDraftTimer(timer);
+    
+    return () => {
+      clearTimeout(timer);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, draftId, title, content, isPublic, tone, media]);
+  
+  // Fonction pour créer un nouveau brouillon vide
+  const createNewDraft = async () => {
+    if (!user) return;
+    
+    try {
+      const newDraft = await saveDraft(
+        user.uid,
+        '',
+        '',
+        tone,
+        [],
+        false
+      );
+      
+      setDraftId(newDraft.id);
+      localStorage.setItem(DRAFT_STORAGE_KEY, newDraft.id);
+    } catch (err) {
+      console.error('Error creating draft:', err);
+    }
+  };
+  
+  // Fonction pour sauvegarder automatiquement le brouillon
+  const autoSaveDraft = async () => {
+    if (!user || !draftId) return;
+    
+    try {
+      await saveDraft(
+        user.uid,
+        title,
+        content,
+        tone,
+        media,
+        isPublic,
+        draftId
+      );
+      
+      setDraftSaved(true);
+      // Masquer le message après 3 secondes
+      setTimeout(() => setDraftSaved(false), 3000);
+    } catch (err) {
+      console.error('Error auto-saving draft:', err);
+    }
+  };
+  
+  // Fonction pour sauvegarder manuellement le brouillon
+  const saveCurrentDraft = async () => {
+    if (!user || !draftId) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      await saveDraft(
+        user.uid,
+        title,
+        content,
+        tone,
+        media,
+        isPublic,
+        draftId
+      );
+      
+      setDraftSaved(true);
+      setTimeout(() => setDraftSaved(false), 3000);
+    } catch (err: any) {
+      console.error('Error saving draft:', err);
+      setError(err.message || 'Une erreur est survenue lors de la sauvegarde du brouillon.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Fonction pour publier la page (créer une page définitive)
   const onSubmit = async (data: CreateFormData) => {
     if (!user) {
       setError('Vous devez être connecté pour créer une page');
+      return;
+    }
+    
+    if (!draftId) {
+      setError('Aucun brouillon trouvé. Veuillez rafraîchir la page.');
       return;
     }
     
@@ -61,20 +193,26 @@ export default function CreatePage() {
         throw new Error('Veuillez sélectionner un ton');
       }
       
-      const newEndPage = await createEndPage(
+      // Sauvegarder les dernières modifications dans le brouillon
+      await saveDraft(
         user.uid,
         data.title.trim(),
         data.content.trim(),
         tone,
         media,
-        data.isPublic
+        data.isPublic,
+        draftId
       );
       
-      if (newEndPage?.slug) {
-        router.push(`/preview/${newEndPage.slug}`);
-      } else {
-        throw new Error('Erreur lors de la création de la page');
-      }
+      // Publier le brouillon (le convertir en page définitive)
+      const publishedPage = await publishDraft(draftId);
+      
+      // Effacer l'ID du brouillon en cours
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      setDraftId(null);
+      
+      // Rediriger vers la page de prévisualisation
+      router.push(`/preview/${publishedPage.slug}`);
     } catch (err: any) {
       console.error('Create page error:', err);
       setError(err.message || 'Une erreur est survenue lors de la création de votre page.');
@@ -120,6 +258,11 @@ export default function CreatePage() {
           <p className="mt-2 text-gray-600">
             Exprimez-vous librement et créez une page mémorable pour marquer cette fin.
           </p>
+          {draftSaved && (
+            <div className="mt-2 p-2 bg-green-50 text-green-700 rounded-md text-sm animate-fadeIn">
+              Brouillon sauvegardé automatiquement
+            </div>
+          )}
         </div>
         
         {error && (
@@ -196,11 +339,19 @@ export default function CreatePage() {
                 Annuler
               </Button>
               <Button
+                type="button"
+                variant="secondary"
+                onClick={saveCurrentDraft}
+                isLoading={isLoading}
+              >
+                Sauvegarder brouillon
+              </Button>
+              <Button
                 type="submit"
                 variant="primary"
                 isLoading={isLoading}
               >
-                Créer ma page
+                Publier
               </Button>
             </div>
           </div>

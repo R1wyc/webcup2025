@@ -28,6 +28,7 @@ export interface EndPage {
   backgroundColor?: string;
   fontFamily?: string;
   textColor?: string;
+  isDraft?: boolean;
 }
 
 export interface User {

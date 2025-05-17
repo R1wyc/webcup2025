@@ -35,19 +35,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Utiliser le onAuthStateChanged simulé
     const unsubscribe = auth.onAuthStateChanged((firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
-        setUser({
+        const userData = {
           uid: firebaseUser.uid,
           email: firebaseUser.email || '',
           displayName: firebaseUser.displayName || undefined,
           photoURL: firebaseUser.photoURL || undefined,
-        });
+        };
+        
+        // Also save to localStorage for persistence
+        localStorage.setItem('theend_user', JSON.stringify(userData));
+        
+        setUser(userData);
       } else {
-        // Tenter de récupérer l'utilisateur depuis localStorage comme fallback
+        // Attempt to recover user from localStorage as fallback
         const storedUser = localStorage.getItem('theend_user');
         if (storedUser) {
           try {
-            setUser(JSON.parse(storedUser));
+            const parsedUser = JSON.parse(storedUser);
+            
+            // Validate that we have a proper user object with required fields
+            if (parsedUser && typeof parsedUser === 'object' && parsedUser.uid) {
+              console.log('Recovered user from localStorage:', parsedUser.uid);
+              setUser(parsedUser);
+            } else {
+              console.error('Invalid user data in localStorage');
+              setUser(null);
+              localStorage.removeItem('theend_user');
+            }
           } catch (e) {
+            console.error('Error parsing user from localStorage:', e);
             setUser(null);
             localStorage.removeItem('theend_user');
           }

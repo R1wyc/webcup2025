@@ -99,7 +99,7 @@ export default function CreatePage() {
     
     try {
       const newDraft = await saveDraft(
-        user.uid,
+        user.email,
         '',
         '',
         tone,
@@ -120,7 +120,7 @@ export default function CreatePage() {
     
     try {
       await saveDraft(
-        user.uid,
+        user.email,
         title,
         content,
         tone,
@@ -146,7 +146,7 @@ export default function CreatePage() {
     
     try {
       await saveDraft(
-        user.uid,
+        user.email,
         title,
         content,
         tone,
@@ -195,7 +195,7 @@ export default function CreatePage() {
       
       // Sauvegarder les dernières modifications dans le brouillon
       await saveDraft(
-        user.uid,
+        user.email,
         data.title.trim(),
         data.content.trim(),
         tone,
@@ -271,7 +271,17 @@ export default function CreatePage() {
           </div>
         )}
         
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+        <form 
+          onSubmit={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log("CreatePage form submission");
+            handleSubmit(onSubmit)(e);
+            return false;
+          }} 
+          className="space-y-8"
+          noValidate
+        >
           <div>
             <Input
               label="Titre de la page"
@@ -311,11 +321,13 @@ export default function CreatePage() {
             />
           </div>
           
-          <MediaUploader
-            media={media}
-            onChange={setMedia}
-            userId={user.uid}
-          />
+          <div className="mb-8">
+            <MediaUploader
+              media={media}
+              onChange={setMedia}
+              userId={user.email}
+            />
+          </div>
           
           <div className="border-t border-gray-200 pt-6">
             <div className="flex items-center mb-4">
@@ -334,14 +346,22 @@ export default function CreatePage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.back()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  router.back();
+                }}
               >
                 Annuler
               </Button>
               <Button
                 type="button"
                 variant="secondary"
-                onClick={saveCurrentDraft}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  saveCurrentDraft();
+                }}
                 isLoading={isLoading}
               >
                 Sauvegarder brouillon

@@ -4,7 +4,7 @@ import { ButtonHTMLAttributes, AnchorHTMLAttributes, ReactNode, forwardRef } fro
 import { twMerge } from 'tailwind-merge';
 import Link from 'next/link';
 
-type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger' | 'success';
+type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger' | 'success' | 'destructive';
 type ButtonSize = 'sm' | 'md' | 'lg';
 
 // Props de base partagés
@@ -58,6 +58,7 @@ export function Button(props: ButtonProps) {
     outline: 'border-2 border-gray-400 bg-transparent hover:bg-gray-100 focus-visible:ring-gray-500 text-gray-700',
     danger: 'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500 shadow-md',
     success: 'bg-green-600 text-white hover:bg-green-700 focus-visible:ring-green-500 shadow-md',
+    destructive: 'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500 shadow-md',
   };
   
   const sizes = {

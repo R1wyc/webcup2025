@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useRef, useCallback, useMemo, Fragment } from 'react';
+import { useState, useRef, useCallback, useMemo, Fragment, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { MediaItem } from '@/types';
 import { XMarkIcon, PlusIcon, ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 import { v4 as uuidv4 } from 'uuid';
+import { uploadAudio } from '@/services/storageService';
+import { useAuth } from '@/context/AuthContext';
 
 interface MediaUploaderProps {
   media: MediaItem[];
@@ -19,6 +21,7 @@ const MAX_IMAGE_WIDTH = 1200;
 const MAX_IMAGE_HEIGHT = 1200;
 
 export function MediaUploader({ media, onChange, userId }: MediaUploaderProps) {
+  const { user, isLoading: authLoading } = useAuth();
   const [modalOpen, setModalOpen] = useState(false);
   const [mediaType, setMediaType] = useState<'image' | 'gif' | 'youtube' | 'music'>('image');
   const [mediaUrl, setMediaUrl] = useState('');
@@ -27,6 +30,11 @@ export function MediaUploader({ media, onChange, userId }: MediaUploaderProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Pour déboguer l'état de l'utilisateur lors des uploads
+  useEffect(() => {
+    console.log("MediaUploader auth state:", { user, authLoading, userId });
+  }, [user, authLoading, userId]);
 
   // Fonction pour prévisualiser l'URL
   const handlePreview = useCallback(() => {
@@ -40,6 +48,7 @@ export function MediaUploader({ media, onChange, userId }: MediaUploaderProps) {
 
   // Optimisation: Utilisation de useCallback pour les gestionnaires d'événements
   const handleAddMedia = useCallback(() => {
+    console.log("handleAddMedia appelé manuellement");
     if (!mediaUrl) {
       setError('Veuillez fournir une URL valide');
       return;
@@ -157,6 +166,10 @@ export function MediaUploader({ media, onChange, userId }: MediaUploaderProps) {
   }, []);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault(); // Empêcher tout comportement par défaut
+    e.stopPropagation(); // Empêcher la propagation de l'événement
+    console.log("File upload triggered", { userState: user });
+    
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -164,23 +177,66 @@ export function MediaUploader({ media, onChange, userId }: MediaUploaderProps) {
       setIsUploading(true);
       setError(null);
       
-      // Optimiser l'image avant l'upload
-      const optimizedFile = await resizeImage(file);
+      // Créer immédiatement un aperçu local avec URL.createObjectURL
+      // Cela donne un feedback immédiat à l'utilisateur
+      const immediatePreviewUrl = URL.createObjectURL(file);
+      setPreviewUrl(immediatePreviewUrl);
       
-      // Simuler une URL de fichier téléchargé
-      const fakeUploadedUrl = URL.createObjectURL(optimizedFile);
-      
-      // Définir l'URL et le titre pour prévisualisation
-      setMediaUrl(fakeUploadedUrl);
-      setMediaTitle(file.name);
-      setPreviewUrl(fakeUploadedUrl);
+      if (mediaType === 'music') {
+        // Vérifier si c'est un fichier MP3
+        if (!file.type.includes('audio/')) {
+          setError('Veuillez sélectionner un fichier audio valide');
+          URL.revokeObjectURL(immediatePreviewUrl);
+          setPreviewUrl(null);
+          setIsUploading(false);
+          return;
+        }
+        
+        try {
+          // Définir les informations de base immédiatement (ne pas attendre l'upload)
+          setMediaTitle(file.name);
+          
+          // Séparer la logique d'upload du reste pour éviter les redirections
+          // Effectuer l'upload seulement si un userId est fourni
+          if (userId) {
+            console.log(`Starting upload for user ${userId}`);
+            
+            // L'upload peut continuer avec un aperçu déjà visible
+            const downloadUrl = await uploadAudio(file, userId);
+            
+            // Une fois l'upload terminé, mettre à jour l'URL pour utiliser celle du serveur
+            setMediaUrl(downloadUrl);
+            
+            // Nettoyer l'URL temporaire
+            URL.revokeObjectURL(immediatePreviewUrl);
+            setPreviewUrl(downloadUrl);
+            
+            console.log("Upload complete, URL updated:", downloadUrl);
+          } else {
+            // En mode développement ou si pas d'utilisateur, garder l'URL locale
+            console.log("Using local preview URL (no upload)");
+            setMediaUrl(immediatePreviewUrl);
+          }
+        } catch (error) {
+          console.error("Error during upload:", error);
+          setError('Erreur pendant le téléversement du fichier audio');
+          // Garder l'aperçu local en cas d'erreur
+        }
+      } else {
+        // Optimiser l'image avant l'upload
+        const optimizedFile = await resizeImage(file);
+        
+        // Définir l'URL et le titre pour prévisualisation
+        setMediaUrl(immediatePreviewUrl);
+        setMediaTitle(file.name);
+      }
     } catch (err) {
       console.error('Upload error:', err);
       setError('Une erreur est survenue lors du téléchargement');
     } finally {
       setIsUploading(false);
     }
-  }, [resizeImage]);
+  }, [resizeImage, mediaType, userId]);
 
   // Optimisation: utiliser useMemo pour renderMediaItem
   const renderMediaItems = useMemo(() => {
@@ -221,14 +277,21 @@ export function MediaUploader({ media, onChange, userId }: MediaUploaderProps) {
                 );
               case 'music':
                 return (
-                  <div className="relative rounded-lg overflow-hidden h-32 w-full bg-gray-800 flex items-center justify-center">
-                    <div className="text-purple-400">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" viewBox="0 0 24 24" fill="currentColor">
+                  <div className="relative rounded-lg overflow-hidden h-32 w-full bg-gray-800 flex flex-col items-center justify-center p-2">
+                    <div className="text-purple-400 mb-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M19.952 5.672c-.904-1.138-1.987-1.336-4.047-1.354l-8.01-.112c-2.328 0-3.02.815-3.02 2.375v12.14c0 1.677.674 2.289 2.37 2.289h10.291c2.092 0 2.486-.747 2.486-2.551v-10.071c0-.579-.112-1.546-.563-2.167l.493-.269zm-16.952 13.328v-12.722l17-.001v12.723h-17z" />
                         <circle cx="12" cy="14" r="3" />
                         <path d="M13 7h-2v5.414l2 2v-7.414z" />
                       </svg>
                     </div>
+                    <audio 
+                      controls 
+                      src={item.url}
+                      className="w-full h-10 max-w-full"
+                    >
+                      Votre navigateur ne supporte pas l'élément audio.
+                    </audio>
                     <span className="absolute bottom-0 left-0 right-0 bg-black/50 text-white p-1 text-xs truncate">
                       {item.title || 'Musique'}
                     </span>
@@ -278,9 +341,12 @@ export function MediaUploader({ media, onChange, userId }: MediaUploaderProps) {
   const MediaModal = () => {
     if (!modalOpen) return null;
     
-    // Gestionnaire de soumission du formulaire
-    const handleSubmit = (e: React.FormEvent) => {
-      e.preventDefault(); // Empêche la soumission par défaut du formulaire
+    // Gestionnaire pour l'ajout de média
+    const handleMediaAddition = (e: React.MouseEvent) => {
+      console.log("MediaModal add button clicked");
+      e.preventDefault(); 
+      e.stopPropagation();
+      
       if (mediaUrl) {
         handleAddMedia();
       } else {
@@ -295,14 +361,22 @@ export function MediaUploader({ media, onChange, userId }: MediaUploaderProps) {
             <h3 className="text-lg font-medium">Ajouter un média</h3>
             <button 
               className="text-gray-500 hover:text-gray-800"
-              onClick={resetForm}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                resetForm();
+              }}
               type="button"
             >
               <XMarkIcon className="h-5 w-5" />
             </button>
           </div>
           
-          <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          {/* Utilisation d'un div au lieu d'un form pour éviter l'imbrication */}
+          <div 
+            className="p-4 space-y-4" 
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex flex-wrap gap-2">
               <Button
                 variant={mediaType === 'image' ? 'primary' : 'outline'}
@@ -355,6 +429,28 @@ export function MediaUploader({ media, onChange, userId }: MediaUploaderProps) {
                   type="button"
                 >
                   Importer un fichier
+                </Button>
+                <p className="text-sm text-gray-500">ou</p>
+              </div>
+            )}
+
+            {mediaType === 'music' && (
+              <div className="space-y-2">
+                <input
+                  type="file"
+                  accept="audio/mp3,audio/mpeg"
+                  className="hidden"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  isLoading={isUploading}
+                  type="button"
+                >
+                  Importer un fichier MP3
                 </Button>
                 <p className="text-sm text-gray-500">ou</p>
               </div>
@@ -415,6 +511,23 @@ export function MediaUploader({ media, onChange, userId }: MediaUploaderProps) {
                         <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z" />
                       </svg>
                     </div>
+                  ) : mediaType === 'music' ? (
+                    <div className="flex flex-col items-center justify-center h-full bg-gray-800 text-purple-400 p-4">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mb-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19.952 5.672c-.904-1.138-1.987-1.336-4.047-1.354l-8.01-.112c-2.328 0-3.02.815-3.02 2.375v12.14c0 1.677.674 2.289 2.37 2.289h10.291c2.092 0 2.486-.747 2.486-2.551v-10.071c0-.579-.112-1.546-.563-2.167l.493-.269zm-16.952 13.328v-12.722l17-.001v12.723h-17z" />
+                        <circle cx="12" cy="14" r="3" />
+                        <path d="M13 7h-2v5.414l2 2v-7.414z" />
+                      </svg>
+                      {previewUrl && (
+                        <audio 
+                          controls 
+                          src={previewUrl}
+                          className="w-full max-w-full"
+                        >
+                          Votre navigateur ne supporte pas l'élément audio.
+                        </audio>
+                      )}
+                    </div>
                   ) : (
                     <div className="flex items-center justify-center h-full bg-gray-800 text-purple-400">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" viewBox="0 0 24 24" fill="currentColor">
@@ -432,7 +545,11 @@ export function MediaUploader({ media, onChange, userId }: MediaUploaderProps) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={resetForm}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  resetForm();
+                }}
                 type="button"
               >
                 Annuler
@@ -442,12 +559,13 @@ export function MediaUploader({ media, onChange, userId }: MediaUploaderProps) {
                 size="sm"
                 isLoading={isUploading}
                 disabled={!mediaUrl}
-                type="submit"
+                onClick={handleMediaAddition}
+                type="button"
               >
                 Ajouter
               </Button>
             </div>
-          </form>
+          </div>
         </div>
       </div>
     );

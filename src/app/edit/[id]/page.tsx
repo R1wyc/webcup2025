@@ -77,6 +77,20 @@ export default function EditPage() {
     fetchEndPage();
   }, [id, reset]);
 
+  // Gestion du formulaire
+  const onFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    // Empêcher explicitement toute soumission de formulaire non intentionnelle
+    e.preventDefault();
+    e.stopPropagation();
+    console.log("EditPage form submission intercepted");
+    
+    // Utiliser handleSubmit de react-hook-form pour la validation
+    handleSubmit(onSubmit)(e);
+    
+    // Retourner false explicitement pour empêcher toute soumission
+    return false;
+  };
+
   const onSubmit = async (data: EditFormData) => {
     if (!user) {
       setError('Vous devez être connecté pour modifier une page');
@@ -88,6 +102,7 @@ export default function EditPage() {
       return;
     }
     
+    console.log("Formulaire soumis intentionnellement, sauvegarde en cours...");
     setIsSaving(true);
     setError(null);
     
@@ -115,7 +130,8 @@ export default function EditPage() {
         isPublic: data.isPublic
       });
       
-      // Rediriger vers la prévisualisation
+      // Rediriger vers la prévisualisation uniquement après une sauvegarde réussie
+      console.log("Sauvegarde réussie, redirection vers la prévisualisation");
       router.push(`/preview/${endPage.slug}`);
     } catch (err: any) {
       console.error('Erreur de modification:', err);
@@ -199,7 +215,17 @@ export default function EditPage() {
           </div>
         )}
         
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+        <MediaUploader
+          media={media}
+          onChange={setMedia}
+          userId={user.email}
+        />
+        
+        <form 
+          onSubmit={onFormSubmit} 
+          className="space-y-8 mt-8" 
+          noValidate
+        >
           <div>
             <Input
               label="Titre de la page"
@@ -239,12 +265,6 @@ export default function EditPage() {
             />
           </div>
           
-          <MediaUploader
-            media={media}
-            onChange={setMedia}
-            userId={user.uid}
-          />
-          
           <div className="border-t border-gray-200 pt-6">
             <div className="flex items-center mb-4">
               <input
@@ -262,7 +282,11 @@ export default function EditPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.back()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  router.back();
+                }}
               >
                 Annuler
               </Button>
